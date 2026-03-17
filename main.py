@@ -36,13 +36,6 @@ SECTOR_MAP = {
     "LLY": "Healthcare", "BABA": "Consumer Cyclical",
 }
 
-TICKERS_POOL = [
-    "AAPL", "MSFT", "GOOG", "AMZN", "TSLA", "NVDA", "META", "INTC", "AMD", "CRM",
-    "ORCL", "ADBE", "PYPL", "NFLX", "QCOM", "TXN", "CSCO", "UBER", "JNJ", "PFE",
-    "MRNA", "UNH", "ABBV", "AMGN", "TMO", "JPM", "BAC", "GS", "V", "MA",
-    "XOM", "CVX", "CAT", "HON", "GE", "LMT", "BA", "DIS", "SBUX", "MCD",
-]
-
 MOVER_TICKERS = ["NVDA", "META", "AMZN", "LLY", "MSFT", "TSLA", "INTC", "PYPL", "DIS", "PFE"]
 
 
@@ -71,6 +64,13 @@ def quote():
         company_name = info.get('longName') or info.get('shortName') or NAME_MAP.get(ticker, ticker)
         sector = info.get('sector') or SECTOR_MAP.get(ticker, 'Unknown')
 
+        market_cap = info.get('marketCap')
+        pe_raw = info.get('trailingPE') or info.get('forwardPE')
+        pe_ratio = round(float(pe_raw), 2) if pe_raw and str(pe_raw) != 'nan' else None
+        week52_high = info.get('fiftyTwoWeekHigh')
+        week52_low = info.get('fiftyTwoWeekLow')
+        volume = int(hist['Volume'].iloc[-1]) if 'Volume' in hist.columns else info.get('volume')
+
         return jsonify({
             'price': round(current_price, 2),
             'change': round(change, 2),
@@ -79,6 +79,11 @@ def quote():
             'low': round(float(hist['Low'].iloc[-1]), 2),
             'companyName': company_name,
             'sector': sector,
+            'marketCap': int(market_cap) if market_cap else None,
+            'peRatio': pe_ratio,
+            'week52High': round(float(week52_high), 2) if week52_high else None,
+            'week52Low': round(float(week52_low), 2) if week52_low else None,
+            'volume': int(volume) if volume else None,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -105,22 +110,41 @@ def candles():
 def picks():
     period = request.args.get('period', 'medium')
     risk = request.args.get('risk', 'moderate')
+    custom_days = request.args.get('days', type=int, default=0)
 
     risk_sensitivity = {'conservative': 2.0, 'moderate': 1.2, 'aggressive': 0.6}.get(risk, 1.2)
     stop_pct = {'conservative': 0.02, 'moderate': 0.05, 'aggressive': 0.10}.get(risk, 0.05)
     target_pct = {'conservative': 0.04, 'moderate': 0.10, 'aggressive': 0.20}.get(risk, 0.10)
 
-    if period == 'short':
+    effective_days = custom_days if custom_days > 0 else 0
+
+    if period == 'short' or (0 < effective_days <= 30):
         pool = ["AAPL", "MSFT", "NVDA", "META", "AMZN", "TSLA", "AMD", "CRM", "NFLX", "QCOM"]
-    elif period == 'long':
+    elif period == 'long' or (effective_days > 90):
         pool = ["AAPL", "MSFT", "JNJ", "UNH", "V", "MA", "JPM", "XOM", "HON", "LLY"]
     else:
         pool = ["AAPL", "MSFT", "NVDA", "META", "AMZN", "GOOG", "V", "JPM", "UNH", "ADBE"]
 
+    if effective_days > 0:
+        if effective_days <= 30:
+            yf_period = '1mo'
+        elif effective_days <= 90:
+            yf_period = '3mo'
+        elif effective_days <= 180:
+            yf_period = '6mo'
+        elif effective_days <= 365:
+            yf_period = '1y'
+        else:
+            yf_period = '2y'
+        lookback_default = effective_days
+    else:
+        yf_period = '3mo'
+        lookback_default = 22
+
     sample = random.sample(pool, min(8, len(pool)))
 
     try:
-        data = yf.download(sample, period='3mo', interval='1d', progress=False, auto_adjust=True)
+        data = yf.download(sample, period=yf_period, interval='1d', progress=False, auto_adjust=True)
         if data.empty:
             return jsonify({'error': 'Could not fetch market data'}), 500
 
@@ -132,14 +156,14 @@ def picks():
                 if ticker not in closes.columns:
                     continue
                 prices = closes[ticker].dropna()
-                if len(prices) < 10:
+                if len(prices) < 5:
                     continue
                 current_price = float(prices.iloc[-1])
-                lookback = min(22, len(prices) - 1)
-                month_return = float((prices.iloc[-1] / prices.iloc[-lookback] - 1) * 100)
-                volatility = float(prices.pct_change().std() * 100)
-                score = month_return - (volatility * risk_sensitivity)
-                scored.append((ticker, current_price, month_return, volatility, score))
+                lb = min(lookback_default, len(prices) - 1)
+                ret = float((prices.iloc[-1] / prices.iloc[-lb] - 1) * 100)
+                vol = float(prices.pct_change().std() * 100)
+                score = ret - (vol * risk_sensitivity)
+                scored.append((ticker, current_price, ret, vol, score, lb))
             except Exception:
                 continue
 
@@ -150,7 +174,7 @@ def picks():
         top3 = scored[:3]
 
         result_picks = []
-        for ticker, price, ret, vol, raw_score in top3:
+        for ticker, price, ret, vol, raw_score, lb in top3:
             stop = round(price * (1 - stop_pct), 2)
             target = round(price * (1 + target_pct), 2)
             normalized = min(99, max(45, int(60 + raw_score * 1.5)))
@@ -159,14 +183,14 @@ def picks():
                 'companyName': NAME_MAP.get(ticker, ticker),
                 'sector': SECTOR_MAP.get(ticker, 'Unknown'),
                 'price': round(price, 2),
-                'changePct': round(ret / max(lookback, 1), 2),
+                'changePct': round(ret / max(lb, 1), 2),
                 'stopLoss': stop,
                 'targetPrice': target,
                 'score': normalized,
                 'rationale': (
-                    f"{round(ret, 1)}% return over the past month with "
-                    f"{round(vol, 2)}% daily volatility — a {'strong' if raw_score > 5 else 'solid'} "
-                    f"fit for a {risk} {period}-term strategy."
+                    f"{round(ret, 1)}% return over the past {lb} trading days with "
+                    f"{round(vol, 2)}% daily volatility — a "
+                    f"{'strong' if raw_score > 5 else 'solid'} fit for a {risk} strategy."
                 ),
             })
 
