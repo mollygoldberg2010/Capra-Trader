@@ -1,33 +1,46 @@
 # Capra Trader
 
-A client-side stock analysis and picker web application.
+A stock analysis and picker web application backed by a Python Flask API using live market data.
 
 ## Overview
 
-Capra Trader is a single-page HTML application that provides:
-- **Stock Analyzer**: Analyze individual stocks with stop-loss and target price calculations
-- **Stock Picker**: AI-powered stock recommendations based on holding period and risk tolerance
-- **Market Movers Sidebar**: Real-time display of gaining and declining stocks
+Capra Trader provides:
+- **Stock Analyzer**: Enter any ticker to get real-time price, stop-loss/target levels, and a 6-month price chart
+- **Stock Picker**: Get 3 AI-scored stock picks based on holding period and risk tolerance
+- **Market Movers Sidebar**: Live gainers and decliners fetched on page load
 
 ## Architecture
 
-- **Type**: Static HTML — no build system, no backend, no package manager
-- **Entry Point**: `index.html` (single file containing all HTML, CSS, and JavaScript)
-- **External Dependencies** (CDN):
-  - Chart.js 4.4.1 for price history charts
-  - Google Fonts (Poppins)
-- **APIs Used**:
-  - Anthropic Claude API (called directly from the browser) for stock data and recommendations
-  - Finnhub API (optional, for live price data — user-provided key stored in localStorage)
+- **Frontend**: Single-page HTML app (`index.html`) — all HTML, CSS, and JavaScript in one file
+- **Backend**: Python Flask (`main.py`) serving both the HTML and REST API endpoints
+- **Data source**: `yfinance` for real-time and historical stock market data
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/quote?ticker=AAPL` | GET | Current price, change, high/low, company name, sector |
+| `/api/candles?ticker=AAPL` | GET | 6-month daily close prices and dates |
+| `/api/picks?period=short&risk=moderate` | GET | Top 3 scored stock picks |
+| `/api/movers` | GET | Live market gainers and decliners |
+
+### External Dependencies (CDN)
+
+- Chart.js 4.4.1 — price history and mini charts
+
+### Python Dependencies
+
+- `flask` + `flask-cors` — web server and CORS
+- `yfinance` — Yahoo Finance market data
 
 ## Development
 
-The app is served via Python's built-in HTTP server:
+```bash
+python main.py
+```
 
-```
-python3 -m http.server 5000
-```
+Runs on `0.0.0.0:5000`. Flask serves `index.html` at `/` and the API at `/api/*`.
 
 ## Deployment
 
-Configured as a **static** deployment. The root directory (`.`) is the public directory since `index.html` is at the root.
+Configured as **autoscale** deployment running `python main.py`.

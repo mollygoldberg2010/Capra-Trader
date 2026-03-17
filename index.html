@@ -711,14 +711,8 @@ const TICKERS_POOL = [
   "XOM","CVX","CAT","HON","GE","LMT","BA","DIS","SBUX","MCD"
 ];
 
-let finnhubKey = localStorage.getItem('finnhub_key') || '';
-
 // ---- INIT ----
 window.onload = () => {
-  if (finnhubKey) {
-    document.getElementById('api-key-input').value = finnhubKey;
-    markConnected();
-  }
   renderSidebarDate();
   renderSidebar();
 };
@@ -729,67 +723,17 @@ function renderSidebarDate() {
     d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-// ---- API KEY ----
-async function saveApiKey() {
-  const key = document.getElementById('api-key-input').value.trim();
-  if (!key) { document.getElementById('api-error').textContent = 'Please paste your API key.'; return; }
-  document.getElementById('api-error').textContent = '';
-  finnhubKey = key;
-  localStorage.setItem('finnhub_key', key);
-  markConnected();
-}
-
-function markConnected() {
-  document.getElementById('api-status').textContent = 'live data connected';
-  document.getElementById('api-status').style.background = 'rgba(122,184,158,0.18)';
-  document.getElementById('api-status').style.color = '#4f9178';
-  document.getElementById('api-setup-box').style.display = 'none';
-}
-
-// ---- CLAUDE API FOR STOCK DATA ----
-async function callClaude(prompt) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system: 'You are a stock data engine. Return ONLY valid JSON, no markdown, no extra text.',
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-  const data = await res.json();
-  const text = data.content.map(i => i.text || '').join('');
-  return JSON.parse(text.replace(/```json|```/g, '').trim());
-}
-
+// ---- BACKEND API ----
 async function getQuote(ticker) {
-  const data = await callClaude(`Give realistic current market data for ${ticker}. Return JSON:
-{"price": number, "change": number, "changePct": number, "high": number, "low": number, "companyName": "string", "sector": "string"}`);
-  return data;
+  const res = await fetch(`/api/quote?ticker=${encodeURIComponent(ticker)}`);
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Quote fetch failed'); }
+  return res.json();
 }
 
-async function getCandles(ticker, currentPrice) {
-  // Generate realistic 6-month price history locally — no API needed
-  const prices = [];
-  let p = currentPrice * (0.82 + Math.random() * 0.08);
-  const trend = (currentPrice - p) / 130;
-  for (let i = 0; i < 130; i++) {
-    p = Math.max(p + trend + (Math.random() - 0.48) * p * 0.022, 0.01);
-    prices.push(parseFloat(p.toFixed(2)));
-  }
-  prices[prices.length - 1] = currentPrice;
-  const dates = [];
-  for (let i = 129; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    if (d.getDay() !== 0 && d.getDay() !== 6)
-      dates.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-  }
-  return { dates: dates.slice(0, prices.length), closes: prices };
-}
-
-async function getProfile(ticker) {
-  return { name: ticker, sector: '' };
+async function getCandles(ticker) {
+  const res = await fetch(`/api/candles?ticker=${encodeURIComponent(ticker)}`);
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Candle fetch failed'); }
+  return res.json();
 }
 
 // ---- TAB SWITCH ----
@@ -950,7 +894,7 @@ async function analyzeStock() {
     // Get 6-month candles
     let chartDates = [], chartCloses = [];
     try {
-      const candles = await getCandles(ticker, price);
+      const candles = await getCandles(ticker);
       chartDates  = candles.dates;
       chartCloses = candles.closes;
     } catch {
@@ -1032,14 +976,9 @@ async function pickStocks() {
   const rp = RISK_PARAMS[risk];
 
   try {
-    const data = await callClaude(`Suggest 3 top stock picks for a ${risk} risk investor with a ${period} holding period.
-Score = avg_return - (volatility x risk_sensitivity) where conservative=2.0, moderate=1.2, aggressive=0.6.
-Return JSON:
-{
-  "picks": [
-    {"ticker":"string","companyName":"string","sector":"string","price":number,"changePct":number,"stopLoss":number,"targetPrice":number,"score":number,"rationale":"one sentence"}
-  ]
-}`);
+    const res = await fetch(`/api/picks?period=${encodeURIComponent(period)}&risk=${encodeURIComponent(risk)}`);
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Picks fetch failed'); }
+    const data = await res.json();
 
     const picks = data.picks;
     let html = '<div class="picks-grid">';
@@ -1086,36 +1025,32 @@ Return JSON:
 }
 
 // ---- SIDEBAR ----
-const SIDEBAR_UP = [
-  { t: 'NVDA', n: 'Nvidia', c: '+3.82%' },
-  { t: 'META', n: 'Meta', c: '+2.41%' },
-  { t: 'AMZN', n: 'Amazon', c: '+1.97%' },
-  { t: 'LLY',  n: 'Eli Lilly', c: '+1.63%' },
-  { t: 'MSFT', n: 'Microsoft', c: '+0.88%' }
-];
-const SIDEBAR_DOWN = [
-  { t: 'TSLA', n: 'Tesla', c: '−4.12%' },
-  { t: 'INTC', n: 'Intel', c: '−2.77%' },
-  { t: 'BABA', n: 'Alibaba', c: '−2.33%' },
-  { t: 'PYPL', n: 'PayPal', c: '−1.55%' },
-  { t: 'DIS',  n: 'Disney', c: '−0.94%' }
-];
-
-function renderSidebar() {
+async function renderSidebar() {
   const upEl   = document.getElementById('movers-up');
   const downEl = document.getElementById('movers-down');
-  SIDEBAR_UP.forEach(m => {
-    upEl.innerHTML += `<div class="mover-item">
-      <div><div class="mover-ticker">${m.t}</div><div class="mover-name">${m.n}</div></div>
-      <span class="mover-change up">${m.c}</span>
-    </div>`;
-  });
-  SIDEBAR_DOWN.forEach(m => {
-    downEl.innerHTML += `<div class="mover-item">
-      <div><div class="mover-ticker">${m.t}</div><div class="mover-name">${m.n}</div></div>
-      <span class="mover-change down">${m.c}</span>
-    </div>`;
-  });
+  upEl.innerHTML   = '<div style="font-size:11px;color:var(--text-light);padding:8px 0;">Loading…</div>';
+  downEl.innerHTML = '';
+  try {
+    const res = await fetch('/api/movers');
+    if (!res.ok) throw new Error('fetch failed');
+    const { up, down } = await res.json();
+    upEl.innerHTML = '';
+    downEl.innerHTML = '';
+    (up || []).forEach(m => {
+      upEl.innerHTML += `<div class="mover-item">
+        <div><div class="mover-ticker">${m.t}</div><div class="mover-name">${m.n}</div></div>
+        <span class="mover-change up">${m.c}</span>
+      </div>`;
+    });
+    (down || []).forEach(m => {
+      downEl.innerHTML += `<div class="mover-item">
+        <div><div class="mover-ticker">${m.t}</div><div class="mover-name">${m.n}</div></div>
+        <span class="mover-change down">${m.c}</span>
+      </div>`;
+    });
+  } catch {
+    upEl.innerHTML = '<div style="font-size:11px;color:var(--text-light);">Unavailable</div>';
+  }
 }
 </script>
 </body>
