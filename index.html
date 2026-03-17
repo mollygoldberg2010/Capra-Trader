@@ -96,6 +96,26 @@ main { padding: 36px; overflow-y: auto; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 .form-group { display: flex; flex-direction: column; gap: 7px; }
 
+/* ---- AUTOCOMPLETE ---- */
+.autocomplete-wrap { position: relative; }
+.autocomplete-dropdown {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 200;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 8px 28px var(--shadow); overflow: hidden; max-height: 240px; overflow-y: auto;
+}
+.autocomplete-dropdown.open { display: block; }
+.ac-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer;
+  transition: background 0.12s;
+}
+.ac-item:hover, .ac-item.active { background: rgba(223,179,138,0.13); }
+.ac-ticker { font-size: 13px; font-weight: 700; color: var(--heading); min-width: 54px; }
+.ac-name { font-size: 11.5px; color: var(--text-light); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-badge { font-size: 9.5px; font-weight: 600; padding: 2px 6px; border-radius: 5px;
+  background: rgba(223,179,138,0.18); color: var(--heading); flex-shrink: 0; }
+.ac-empty { padding: 12px 14px; font-size: 12px; color: var(--text-light); text-align: center; }
+.ac-loading { padding: 12px 14px; font-size: 12px; color: var(--text-light); text-align: center; }
+
 label {
   font-size: 10px; font-weight: 700; color: var(--text-light);
   text-transform: uppercase; letter-spacing: 1px;
@@ -500,8 +520,11 @@ aside {
     <div id="analyzer" class="panel active">
       <div class="form-row">
         <div class="form-group">
-          <label>Ticker Symbol</label>
-          <input type="text" id="ticker-input" placeholder="e.g. AAPL, TSLA, NVDA" maxlength="8">
+          <label>Search Company or Ticker</label>
+          <div class="autocomplete-wrap">
+            <input type="text" id="ticker-input" placeholder="e.g. Apple, TSLA, Nvidia…" autocomplete="off" spellcheck="false">
+            <div class="autocomplete-dropdown" id="ticker-dropdown"></div>
+          </div>
         </div>
         <div class="form-group">
           <label>Risk Level</label>
@@ -832,6 +855,92 @@ function renderMiniChart(canvasId, basePrice, trend) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } }, animation: { duration: 800 } }
   });
 }
+
+// ---- TICKER AUTOCOMPLETE ----
+(function () {
+  const input    = document.getElementById('ticker-input');
+  const dropdown = document.getElementById('ticker-dropdown');
+  let acTimer    = null;
+  let activeIdx  = -1;
+  let lastResults = [];
+
+  function openDrop() { dropdown.classList.add('open'); }
+  function closeDrop() { dropdown.classList.remove('open'); activeIdx = -1; }
+
+  function renderResults(items) {
+    lastResults = items;
+    activeIdx = -1;
+    if (!items.length) {
+      dropdown.innerHTML = '<div class="ac-empty">No results found</div>';
+      openDrop(); return;
+    }
+    dropdown.innerHTML = items.map((r, i) =>
+      `<div class="ac-item" data-i="${i}">
+        <span class="ac-ticker">${r.ticker}</span>
+        <span class="ac-name">${r.name || ''}</span>
+        <span class="ac-badge">${r.type}</span>
+      </div>`
+    ).join('');
+    dropdown.querySelectorAll('.ac-item').forEach(el => {
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        selectTicker(lastResults[+el.dataset.i]);
+      });
+    });
+    openDrop();
+  }
+
+  function selectTicker(r) {
+    input.value = r.ticker;
+    input.dataset.selected = r.ticker;
+    closeDrop();
+  }
+
+  function highlightItem(idx) {
+    const items = dropdown.querySelectorAll('.ac-item');
+    items.forEach(el => el.classList.remove('active'));
+    if (idx >= 0 && idx < items.length) items[idx].classList.add('active');
+  }
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    input.dataset.selected = '';
+    clearTimeout(acTimer);
+    if (q.length < 2) { closeDrop(); return; }
+    dropdown.innerHTML = '<div class="ac-loading">Searching…</div>';
+    openDrop();
+    acTimer = setTimeout(async () => {
+      try {
+        const res  = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        renderResults(data.results || []);
+      } catch { closeDrop(); }
+    }, 280);
+  });
+
+  input.addEventListener('keydown', e => {
+    const items = dropdown.querySelectorAll('.ac-item');
+    if (!dropdown.classList.contains('open') || !items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+      highlightItem(activeIdx);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      highlightItem(activeIdx);
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      selectTicker(lastResults[activeIdx]);
+    } else if (e.key === 'Escape') {
+      closeDrop();
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) closeDrop();
+  });
+})();
 
 // ---- ANALYZER ----
 async function analyzeStock() {

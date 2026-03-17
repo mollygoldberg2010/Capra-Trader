@@ -1,4 +1,5 @@
 import random
+import requests as req_lib
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import yfinance as yf
@@ -197,6 +198,38 @@ def picks():
         return jsonify({'picks': result_picks})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/search')
+def search():
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify({'results': []})
+    try:
+        url = (
+            f'https://query2.finance.yahoo.com/v1/finance/search'
+            f'?q={q}&quotesCount=8&newsCount=0&enableFuzzyQuery=false'
+        )
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; CapraTrader/1.0)'}
+        resp = req_lib.get(url, headers=headers, timeout=5)
+        data = resp.json()
+        quotes = data.get('quotes', [])
+        results = []
+        for item in quotes:
+            symbol = item.get('symbol', '')
+            name = item.get('longname') or item.get('shortname') or ''
+            exchange = item.get('exchange', '')
+            q_type = item.get('quoteType', '')
+            if symbol and q_type in ('EQUITY', 'ETF', 'INDEX'):
+                results.append({
+                    'ticker': symbol,
+                    'name': name,
+                    'exchange': exchange,
+                    'type': q_type,
+                })
+        return jsonify({'results': results[:7]})
+    except Exception as e:
+        return jsonify({'results': [], 'error': str(e)})
 
 
 @app.route('/api/movers')
