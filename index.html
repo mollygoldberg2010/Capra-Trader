@@ -1896,42 +1896,50 @@ function renderMoversTo(upId, downId, data) {
     });
 
     const SECTOR_COLORS = {
-      'Technology': '#e8d5f0', 'Consumer': '#fbe2d0',
-      'Healthcare': '#d5eee8', 'Finance': '#d5e8f0',
-      'Energy': '#f0e8d5', 'Industrials': '#e8f0d5',
-      'Communication': '#f0d5e8',
+      'Technology':    { bg: 'rgba(222,178,169,0.15)', label: '#deb2a9' },
+      'Consumer':      { bg: 'rgba(223,179,138,0.15)', label: '#dfb38a' },
+      'Healthcare':    { bg: 'rgba(122,184,158,0.15)', label: '#5a9e85' },
+      'Finance':       { bg: 'rgba(139,111,94,0.10)',  label: '#8b6f5e' },
+      'Energy':        { bg: 'rgba(184,155,142,0.15)', label: '#9a7060' },
+      'Industrials':   { bg: 'rgba(212,132,122,0.12)', label: '#c07060' },
+      'Communication': { bg: 'rgba(223,179,138,0.10)', label: '#b89060' },
     };
 
-    let html = '<div style="display:flex;flex-direction:column;gap:8px;width:100%;">';
+    let html = '<div style="display:flex;flex-direction:column;gap:10px;width:100%;">';
 
     Object.entries(sectors).forEach(([sector, sectorStocks]) => {
-      const color = SECTOR_COLORS[sector] || '#efeae7';
-      html += `<div style="background:${color};border-radius:10px;padding:10px 12px;">`;
-      html += `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-light);margin-bottom:8px;">${sector}</div>`;
-      html += '<div style="display:flex;flex-wrap:wrap;gap:5px;">';
+      const sc = SECTOR_COLORS[sector] || { bg: 'rgba(223,179,138,0.1)', label: '#b89b8e' };
+      sectorStocks.sort((a, b) => b.weight - a.weight);
 
-      sectorStocks.sort((a, b) => b.weight - a.weight).forEach(s => {
+      html += `<div style="background:${sc.bg};border-radius:12px;padding:12px 14px;border:1px solid var(--border);">`;
+      html += `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:${sc.label};margin-bottom:10px;">${sector}</div>`;
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;">';
+
+      sectorStocks.forEach(s => {
         const chg = s.changePct;
         const absChg = Math.abs(chg);
-        let bg, textColor;
-        if (chg > 2)       { bg = '#3d8c6e'; textColor = 'white'; }
-        else if (chg > 0)  { bg = '#7ab89e'; textColor = 'white'; }
-        else if (chg > -2) { bg = '#d4847a'; textColor = 'white'; }
-        else               { bg = '#b84f44'; textColor = 'white'; }
-        if (absChg < 0.3)  { bg = '#a89080'; textColor = 'white'; }
+        let bg, border;
+        if (absChg < 0.3)      { bg = 'rgba(184,155,142,0.35)'; border = 'rgba(184,155,142,0.5)'; }
+        else if (chg > 2)      { bg = 'rgba(61,140,110,0.85)';  border = 'rgba(61,140,110,1)'; }
+        else if (chg > 0)      { bg = 'rgba(90,158,133,0.75)';  border = 'rgba(90,158,133,1)'; }
+        else if (chg > -2)     { bg = 'rgba(212,132,122,0.75)'; border = 'rgba(212,132,122,1)'; }
+        else                   { bg = 'rgba(180,60,50,0.80)';   border = 'rgba(180,60,50,1)'; }
 
-        const size = Math.max(60, Math.min(130, s.weight * 1.1));
+        const w = Math.max(58, Math.min(120, s.weight * 1.05));
+        const h = Math.max(46, Math.min(90, s.weight * 0.75));
         const sign = chg >= 0 ? '+' : '';
+        const fs1 = w > 85 ? 12 : 10;
+        const fs2 = w > 85 ? 10 : 9;
 
         html += `<div onclick="analyzeFromMap('${s.ticker}')"
-          style="width:${size}px;min-height:${size * 0.7}px;background:${bg};border-radius:8px;
-                 padding:8px;cursor:pointer;display:flex;flex-direction:column;
-                 align-items:center;justify-content:center;transition:transform 0.15s,opacity 0.15s;
-                 box-shadow:0 1px 4px rgba(0,0,0,0.12);"
-          onmouseover="this.style.transform='scale(1.06)';this.style.opacity='0.92'"
-          onmouseout="this.style.transform='scale(1)';this.style.opacity='1'">
-          <div style="font-size:${size > 90 ? 12 : 10}px;font-weight:700;color:${textColor};text-align:center;">${s.ticker}</div>
-          <div style="font-size:${size > 90 ? 11 : 9}px;color:${textColor};opacity:0.85;text-align:center;margin-top:2px;">${sign}${chg.toFixed(1)}%</div>
+          style="width:${w}px;height:${h}px;background:${bg};border:1px solid ${border};
+                 border-radius:8px;padding:6px;cursor:pointer;display:flex;flex-direction:column;
+                 align-items:center;justify-content:center;
+                 transition:transform 0.15s,filter 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.08);"
+          onmouseover="this.style.transform='scale(1.07)';this.style.filter='brightness(1.08)'"
+          onmouseout="this.style.transform='scale(1)';this.style.filter='brightness(1)'">
+          <div style="font-size:${fs1}px;font-weight:700;color:white;text-align:center;line-height:1.2;">${s.ticker}</div>
+          <div style="font-size:${fs2}px;color:rgba(255,255,255,0.88);text-align:center;margin-top:3px;">${sign}${chg.toFixed(1)}%</div>
         </div>`;
       });
 
