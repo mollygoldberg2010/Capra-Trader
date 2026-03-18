@@ -1239,8 +1239,8 @@ async function analyzeStock() {
     const w52pct = (q.week52High && q.week52Low)
       ? Math.round(((price - q.week52Low) / (q.week52High - q.week52Low)) * 100)
       : 50;
-
-    lastAnalysis = { ticker, q, rp, price, stopLoss, target, chartDates, chartCloses, w52pct };
+get, chartDates, chartCloses, w52pct };
+    lastAnalysis = { ticker, q, rp, price, stopLoss, tar
     renderAnalyzerResults(lastAnalysis);
 
   } catch(e) {
