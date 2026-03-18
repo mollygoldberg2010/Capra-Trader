@@ -12,13 +12,39 @@ Capra Trader provides:
 
 ## Features
 
-1. **Portfolio tab** — Add stocks with buy price and shares; see live gain/loss per holding and portfolio total. Stored in localStorage.
-2. **Expanded quote data** — Market cap, P/E ratio, 52-week high/low with visual range bar, and daily volume from yfinance.
-3. **Tooltip popups** — Hover over terms like "Stop Loss", "Target Price", "P/E Ratio", "Market Cap", "Volume", "52-Week Range", and "Algorithm Score" for plain-English definitions.
-4. **First-visit onboarding modal** — 3-step walkthrough shown once; dismissal stored in localStorage.
-5. **Improved animations** — Cards fade and slide up on load with staggered delays; price/stop-loss/target numbers count up with eased animation.
-6. **Mobile responsive** — Fixed bottom navigation bar on screens ≤640px for Analyze, Picks, Portfolio, and Movers tabs. Movers shown in a slide-up sheet on mobile.
-7. **Custom holding period** — "Custom duration…" option reveals a text input; parses formats like "45 days", "3 weeks", "2 months" and passes the equivalent day count to the backend.
+1. **Three experience modes** — Beginner, Intermediate, and Pro, each delivering a tailored UI. Chosen on first visit via a full-screen modal; stored in `localStorage` as `capra_mode`. A clickable pill in the header lets users switch at any time. Results re-render immediately when the mode changes.
+2. **Portfolio tab** — Add stocks with buy price and shares; see live gain/loss per holding and portfolio total. Stored in localStorage.
+3. **Expanded quote data** — Market cap, P/E ratio, 52-week high/low with visual range bar, and daily volume from yfinance.
+4. **Tooltip popups** — Hover over terms for plain-English definitions (hidden in Pro mode).
+5. **Autocomplete search** — Typing 2+ characters in the analyzer calls `/api/search` → Yahoo Finance symbol search; dropdown shows company name + ticker. Beginner mode shows company name prominently; Intermediate/Pro show ticker first.
+6. **Improved animations** — Cards fade and slide up; numbers count up with eased animation.
+7. **Mobile responsive** — Fixed bottom navigation bar on screens ≤640px; Movers in a slide-up sheet.
+8. **Custom holding period** — Parses "45 days", "3 weeks", "2 months" etc.
+
+## Mode Details
+
+### 🌱 Beginner
+- Intro paragraph explaining what a stock is shown above the search bar
+- Search label reads "Company Name"; autocomplete shows company name large, ticker small/gray
+- Results show plain-English narrative: "Right now, one share of Apple costs $X…"
+- Only 3 metric cards: Current Price, Safety Net Price (Stop Loss), Goal Price (Target) — each with a one-sentence explanation directly underneath
+- No P/E, market cap, volume, or volatility
+- Picker intro uses plain language; results include a "How did we pick these?" section
+- Glossary panel accessible via "What does this mean?" button (10 terms, plain English)
+
+### 📈 Intermediate
+- Standard labels with one-line explanations under each metric card
+- Shows: price, stop loss, target, company size (market cap), 52-week range
+- "Explain these results to me" toggle reveals a plain-English narrative
+- Picker shows algorithm score + rationale per card
+- Tooltips on hover for unfamiliar terms
+
+### 💼 Pro
+- Compact layout with all 6 metrics: price, stop loss, target, P/E, market cap, volume
+- No explanations under metrics
+- Strategy Insight box with concise technical summary
+- Picker cards show full algorithm breakdown: return %, volatility level, risk sensitivity, final score
+- No tooltips, no glossary, no plain-English walkthrough
 
 ## Architecture
 
