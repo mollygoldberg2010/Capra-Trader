@@ -499,6 +499,124 @@ def heatmap():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/daytrading')
+def daytrading():
+    SCAN_TICKERS = [
+        "AAPL", "MSFT", "NVDA", "META", "AMZN", "TSLA", "GOOG", "AMD",
+        "NFLX", "CRM", "ADBE", "UBER", "PYPL", "INTC", "QCOM", "CSCO",
+        "JPM", "BAC", "GS", "V", "MA", "MS",
+        "JNJ", "PFE", "LLY", "ABBV", "UNH", "MRNA", "AMGN",
+        "XOM", "CVX", "COP",
+        "CAT", "HON", "GE", "BA", "LMT",
+        "DIS", "NFLX", "SPOT",
+        "WMT", "COST", "TGT", "NKE", "SBUX", "MCD",
+        "COIN", "SQ", "SHOP", "SNAP", "RBLX", "PLTR", "RIVN", "LCID",
+    ]
 
+    try:
+        data = yf.download(SCAN_TICKERS, period="10d", interval="1d", progress=False, auto_adjust=True)
+        closes = data["Close"] if "Close" in data.columns else data
+        volumes = data["Volume"] if "Volume" in data.columns else None
+
+        results = []
+        for ticker in SCAN_TICKERS:
+            try:
+                if ticker not in closes.columns:
+                    continue
+                prices = closes[ticker].dropna()
+                if len(prices) < 5:
+                    continue
+
+                current = float(prices.iloc[-1])
+                prev    = float(prices.iloc[-2])
+                overnight_chg = ((current - prev) / prev) * 100
+
+                # Multi-day winning streak
+                streak = 0
+                for i in range(len(prices) - 1, 0, -1):
+                    if prices.iloc[i] > prices.iloc[i - 1]:
+                        streak += 1
+                    else:
+                        break
+
+                # 5-day return
+                ret_5d = ((current - float(prices.iloc[-5])) / float(prices.iloc[-5])) * 100
+
+                # Volume spike
+                vol_spike_ratio = None
+                if volumes is not None and ticker in volumes.columns:
+                    vols = volumes[ticker].dropna()
+                    if len(vols) >= 5:
+                        avg_vol = float(vols.iloc[-6:-1].mean())
+                        today_vol = float(vols.iloc[-1])
+                        if avg_vol > 0:
+                            vol_spike_ratio = round(today_vol / avg_vol, 2)
+
+                # Scoring: weight overnight move, streak, volume
+                score = 0
+                if overnight_chg > 1:   score += overnight_chg * 2
+                if streak >= 3:          score += streak * 3
+                if vol_spike_ratio and vol_spike_ratio > 1.5: score += (vol_spike_ratio - 1) * 5
+                if ret_5d > 5:           score += ret_5d * 0.5
+
+                # Only include if positive momentum
+                if overnight_chg < 0.3 and streak < 2:
+                    continue
+
+                company = NAME_MAP.get(ticker, ticker)
+
+                # Signal explanations
+                signals = []
+                beginner_signals = []
+
+                if overnight_chg >= 2:
+                    signals.append(f"jumped +{round(overnight_chg,1)}% overnight")
+                    beginner_signals.append(f"its price jumped {round(overnight_chg,1)}% since yesterday — a big overnight move that day traders watch closely")
+                elif overnight_chg >= 0.5:
+                    signals.append(f"up +{round(overnight_chg,1)}% from yesterday")
+                    beginner_signals.append(f"it rose {round(overnight_chg,1)}% since yesterday's close — a positive start")
+
+                if streak >= 4:
+                    signals.append(f"{streak}-day winning streak")
+                    beginner_signals.append(f"it has gone up {streak} days in a row — that kind of consistent momentum is what day traders look for")
+                elif streak >= 2:
+                    signals.append(f"up {streak} days in a row")
+                    beginner_signals.append(f"it has risen for {streak} straight days, showing consistent upward pressure")
+
+                if vol_spike_ratio and vol_spike_ratio >= 2:
+                    signals.append(f"volume {round(vol_spike_ratio,1)}x above average")
+                    beginner_signals.append(f"it is being traded {round(vol_spike_ratio,1)}x more than usual today — heavy trading activity often means something important is happening")
+                elif vol_spike_ratio and vol_spike_ratio >= 1.4:
+                    signals.append(f"volume {round(vol_spike_ratio,1)}x normal")
+                    beginner_signals.append(f"more people than usual are buying and selling it today — elevated activity can signal a move is building")
+
+                if ret_5d >= 8:
+                    signals.append(f"+{round(ret_5d,1)}% over 5 days")
+                    beginner_signals.append(f"it has climbed {round(ret_5d,1)}% over the past week — strong recent momentum")
+
+                if not signals:
+                    continue
+
+                results.append({
+                    "ticker": ticker,
+                    "companyName": company,
+                    "sector": SECTOR_MAP.get(ticker, "Unknown"),
+                    "price": round(current, 2),
+                    "overnightChg": round(overnight_chg, 2),
+                    "streak": streak,
+                    "ret5d": round(ret_5d, 1),
+                    "volSpikeRatio": vol_spike_ratio,
+                    "score": round(score, 1),
+                    "signals": signals,
+                    "beginnerSignals": beginner_signals,
+                })
+            except Exception:
+                continue
+
+        results.sort(key=lambda x: x["score"], reverse=True)
+        return jsonify({"picks": results[:8]})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

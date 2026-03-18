@@ -679,6 +679,7 @@ aside {
       <button class="tab" data-tab="picker" onclick="switchTab('picker')">Stock Picker</button>
       <button class="tab" data-tab="portfolio" onclick="switchTab('portfolio')">Portfolio</button>
       <button class="tab" data-tab="heatmap" onclick="switchTab('heatmap')">Market Map</button>
+      <button class="tab" data-tab="daytrading" onclick="switchTab('daytrading')">Day Trading</button>
     </div>
 
     <!-- ANALYZER PANEL -->
@@ -745,7 +746,32 @@ aside {
       <div class="error-msg" id="picker-error"></div>
       <div id="picker-results" style="display:none;"></div>
     </div>
-
+    <!-- DAY TRADING PANEL -->
+    <div id="daytrading" class="panel">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:15px;font-weight:700;color:var(--heading);margin-bottom:4px;">Day Trading Picks</div>
+        <div style="font-size:11px;color:var(--text-light);" id="dt-subtitle">Stocks showing overnight moves, multi-day momentum, and unusual volume</div>
+      </div>
+      <div id="daytrading-results">
+        <div style="font-size:13px;color:var(--text-light);text-align:center;padding:48px;">Loading momentum data…</div>
+      </div>
+    </div>
+   
+  <!-- HEATMAP PANEL -->
+  <div id="heatmap" class="panel">
+    <div style="margin-bottom:20px;">
+      <div style="font-size:15px;font-weight:700;color:var(--heading);margin-bottom:4px;">Market Heatmap</div>
+      <div style="font-size:11px;color:var(--text-light);">Sized by market cap · colored by today's performance · click any stock to analyze it</div>
+    </div>
+    <div id="heatmap-container" style="width:100%;background:var(--card-bg);border-radius:16px;border:1px solid var(--border);padding:16px;box-shadow:0 4px 24px var(--shadow);min-height:500px;display:flex;align-items:center;justify-content:center;">
+      <div id="heatmap-loading" style="font-size:13px;color:var(--text-light);">Loading market data…</div>
+    </div>
+    <div style="margin-top:12px;font-size:11px;color:var(--text-light);display:flex;gap:16px;align-items:center;">
+      <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:12px;border-radius:3px;background:#7ab89e;display:inline-block;"></span> Gaining</span>
+      <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:12px;border-radius:3px;background:#d4847a;display:inline-block;"></span> Declining</span>
+      <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:12px;border-radius:3px;background:#b89b8e;display:inline-block;"></span> Flat</span>
+    </div>
+  </div>
     <!-- PORTFOLIO PANEL -->
     <div id="portfolio" class="panel">
       <div class="portfolio-add-form">
@@ -770,24 +796,8 @@ aside {
       <div class="holding-list" id="holding-list"></div>
       <div id="portfolio-summary"></div>
     </div>
-
+  </main>
   
-  <!-- HEATMAP PANEL -->
-  <div id="heatmap" class="panel">
-    <div style="margin-bottom:20px;">
-      <div style="font-size:15px;font-weight:700;color:var(--heading);margin-bottom:4px;">Market Heatmap</div>
-      <div style="font-size:11px;color:var(--text-light);">Sized by market cap · colored by today's performance · click any stock to analyze it</div>
-    </div>
-    <div id="heatmap-container" style="width:100%;background:var(--card-bg);border-radius:16px;border:1px solid var(--border);padding:16px;box-shadow:0 4px 24px var(--shadow);min-height:500px;display:flex;align-items:center;justify-content:center;">
-      <div id="heatmap-loading" style="font-size:13px;color:var(--text-light);">Loading market data…</div>
-    </div>
-    <div style="margin-top:12px;font-size:11px;color:var(--text-light);display:flex;gap:16px;align-items:center;">
-      <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:12px;border-radius:3px;background:#7ab89e;display:inline-block;"></span> Gaining</span>
-      <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:12px;border-radius:3px;background:#d4847a;display:inline-block;"></span> Declining</span>
-      <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:12px;border-radius:3px;background:#b89b8e;display:inline-block;"></span> Flat</span>
-    </div>
-  </div>
-    </main>
   <!-- SIDEBAR -->
   <aside>
     <div class="sidebar-title">Market Movers</div>
@@ -823,6 +833,10 @@ aside {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       <span>Map</span>
     </button>
+  <button class="bnav-btn" id="bnav-daytrading" onclick="switchTab('daytrading')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+    <span>Day Trade</span>
+  </button>
   </nav>
 
 <script>
@@ -1004,6 +1018,7 @@ function switchTab(tabId) {
   document.getElementById(tabId).classList.add('active');
   if (tabId === 'portfolio') loadPortfolio();
   if (tabId === 'heatmap') loadHeatmap();
+  if (tabId === 'daytrading') loadDayTrading();
 }
 
 // ---- MOBILE MOVERS SHEET ----
@@ -1958,6 +1973,132 @@ function renderMoversTo(upId, downId, data) {
       if (!risk) document.getElementById('risk-analyzer').value = 'moderate';
       analyzeStock();
     }, 100);
+  }
+  // ---- DAY TRADING ----
+  let daytradingLoaded = false;
+
+  async function loadDayTrading() {
+    if (daytradingLoaded) return;
+    const resultsEl = document.getElementById('daytrading-results');
+    try {
+      const res = await fetch('/api/daytrading');
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      daytradingLoaded = true;
+      renderDayTrading(data.picks);
+    } catch(e) {
+      resultsEl.innerHTML = '<div style="color:var(--stop-color);font-size:13px;text-align:center;padding:48px;">Could not load momentum data. Please try again.</div>';
+    }
+  }
+
+  function renderDayTrading(picks) {
+    const resultsEl = document.getElementById('daytrading-results');
+    if (!picks || picks.length === 0) {
+      resultsEl.innerHTML = '<div style="font-size:13px;color:var(--text-light);text-align:center;padding:48px;">No strong momentum signals found right now. Check back during market hours.</div>';
+      return;
+    }
+
+    const subtitle = document.getElementById('dt-subtitle');
+    if (capra_mode === 'beginner' && subtitle) {
+      subtitle.textContent = 'These are stocks that are moving a lot today — here is why each one caught our attention.';
+    }
+
+    let html = '<div class="picks-grid">';
+    picks.forEach((s, i) => {
+      html += buildDayTradeCard(s, i);
+    });
+    html += '</div>';
+
+    if (capra_mode === 'beginner') {
+      html += `<div class="how-picked" style="margin-top:22px;">
+        <div class="how-picked-title">What is day trading?</div>
+        <p>Day trading means buying a stock and selling it within the same day (or a few days) to capture a short price move. It is riskier than long-term investing because prices can change fast — but these stocks are showing signs that something is happening right now. Always do your own research before buying anything.</p>
+      </div>`;
+    }
+
+    resultsEl.innerHTML = html;
+  }
+
+  function buildDayTradeCard(s, i) {
+    const sign = s.overnightChg >= 0 ? '+' : '';
+    const chgClass = s.overnightChg >= 0 ? 'target' : 'stop';
+
+    if (capra_mode === 'beginner') {
+      const explanations = (s.beginnerSignals || []).map(sig =>
+        `<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;">
+          <span style="color:var(--target-color);font-size:13px;flex-shrink:0;">✓</span>
+          <span style="font-size:11.5px;color:var(--text);line-height:1.6;">${sig}</span>
+        </div>`
+      ).join('');
+
+      return `
+      <div class="pick-card" style="animation-delay:${i * 0.1}s;">
+        <div class="pick-rank">Momentum Pick ${i + 1}</div>
+        <div class="pick-ticker">${s.companyName}</div>
+        <div class="pick-name">${s.ticker} · ${s.sector}</div>
+        <div class="pick-price">$${s.price.toFixed(2)} per share</div>
+        <div style="margin:12px 0 14px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.9px;color:var(--heading);margin-bottom:10px;">Why is this stock moving?</div>
+          ${explanations}
+        </div>
+        <button class="pick-add-btn" onclick="analyzeFromDayTrade('${s.ticker}')">🔍 Analyze this stock</button>
+      </div>`;
+    }
+
+    if (capra_mode === 'pro') {
+      const signals = (s.signals || []).join(' · ');
+      return `
+      <div class="pick-card" style="animation-delay:${i * 0.1}s;">
+        <div class="pick-rank">Rank #${i + 1} · Score ${s.score}</div>
+        <div class="pick-ticker">${s.ticker}</div>
+        <div class="pick-name">${s.companyName} · ${s.sector}</div>
+        <div class="pick-price">$${s.price.toFixed(2)}</div>
+        <div style="margin:8px 0 10px;">
+          <span class="metric-value ${chgClass}" style="font-size:15px;">${sign}${s.overnightChg.toFixed(2)}%</span>
+          <span style="font-size:10px;color:var(--text-light);margin-left:6px;">overnight</span>
+        </div>
+        <div class="pro-breakdown" style="margin-bottom:10px;">
+          <strong>Streak:</strong> ${s.streak}d &nbsp;
+          <strong>5D:</strong> ${s.ret5d >= 0 ? '+' : ''}${s.ret5d}% &nbsp;
+          <strong>Vol:</strong> ${s.volSpikeRatio ? s.volSpikeRatio + 'x' : 'N/A'}
+        </div>
+        <div style="font-size:10.5px;color:var(--text-light);line-height:1.6;padding-top:10px;border-top:1px solid var(--border);">${signals}</div>
+        <button class="pick-add-btn" style="margin-top:10px;" onclick="analyzeFromDayTrade('${s.ticker}')">→ Full Analysis</button>
+      </div>`;
+    }
+
+    // Intermediate
+    const signalPills = (s.signals || []).map(sig =>
+      `<span style="display:inline-block;font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px;background:rgba(122,184,158,0.15);color:#3c886a;margin:2px 3px 2px 0;">${sig}</span>`
+    ).join('');
+
+    return `
+    <div class="pick-card" style="animation-delay:${i * 0.1}s;">
+      <div class="pick-rank">Pick #${i + 1}</div>
+      <div class="pick-ticker">${s.ticker}</div>
+      <div class="pick-name">${s.companyName} · ${s.sector}</div>
+      <div class="pick-price">$${s.price.toFixed(2)}</div>
+      <div style="margin:6px 0 12px;">
+        <span class="metric-value ${chgClass}" style="font-size:15px;">${sign}${s.overnightChg.toFixed(2)}%</span>
+        <span style="font-size:10px;color:var(--text-light);margin-left:6px;">since yesterday's close</span>
+      </div>
+      <div style="margin-bottom:12px;">${signalPills}</div>
+      <div style="font-size:10px;color:var(--text-light);padding-top:10px;border-top:1px solid var(--border);">
+        ${s.streak >= 2 ? `<span style="margin-right:12px;">📈 ${s.streak}-day streak</span>` : ''}
+        ${s.ret5d ? `<span style="margin-right:12px;">5D: ${s.ret5d >= 0 ? '+' : ''}${s.ret5d}%</span>` : ''}
+        ${s.volSpikeRatio ? `<span>Vol: ${s.volSpikeRatio}x avg</span>` : ''}
+      </div>
+      <button class="pick-add-btn" style="margin-top:10px;" onclick="analyzeFromDayTrade('${s.ticker}')">+ Full Analysis</button>
+    </div>`;
+  }
+
+  function analyzeFromDayTrade(ticker) {
+    document.getElementById('ticker-input').value = ticker;
+    if (!document.getElementById('risk-analyzer').value) {
+      document.getElementById('risk-analyzer').value = 'aggressive';
+    }
+    switchTab('analyzer');
+    setTimeout(() => analyzeStock(), 100);
   }
 async function renderSidebar() {
   const upEl   = document.getElementById('movers-up');
