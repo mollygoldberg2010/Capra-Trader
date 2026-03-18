@@ -52,7 +52,7 @@ def quote():
         return jsonify({'error': 'ticker is required'}), 400
     try:
         t = yf.Ticker(ticker)
-        hist = t.history(period='5d')
+        hist = t.history(period='3mo')
         if hist.empty or len(hist) < 1:
             return jsonify({'error': f'No data found for {ticker}'}), 404
 
@@ -61,16 +61,142 @@ def quote():
         change = current_price - prev_close
         change_pct = (change / prev_close) * 100 if prev_close else 0
 
+        # 1-month and 3-month trend
+        price_1mo_ago = float(hist['Close'].iloc[-22]) if len(hist) >= 22 else float(hist['Close'].iloc[0])
+        price_3mo_ago = float(hist['Close'].iloc[0])
+        trend_1mo = ((current_price - price_1mo_ago) / price_1mo_ago) * 100
+        trend_3mo = ((current_price - price_3mo_ago) / price_3mo_ago) * 100
+
+        # 52-week position
+        hist_1y = t.history(period='1y')
+        week52_high_calc = float(hist_1y['High'].max()) if not hist_1y.empty else current_price
+        week52_low_calc  = float(hist_1y['Low'].min())  if not hist_1y.empty else current_price
+        w52_range = week52_high_calc - week52_low_calc
+        w52_position = ((current_price - week52_low_calc) / w52_range * 100) if w52_range > 0 else 50
+        if w52_position > 80:
+            w52_label = 'near its 52-week high'
+        elif w52_position < 20:
+            w52_label = 'near its 52-week low'
+        else:
+            w52_label = 'in the middle of its 52-week range'
+
         info = t.info
         company_name = info.get('longName') or info.get('shortName') or NAME_MAP.get(ticker, ticker)
         sector = info.get('sector') or SECTOR_MAP.get(ticker, 'Unknown')
-
         market_cap = info.get('marketCap')
         pe_raw = info.get('trailingPE') or info.get('forwardPE')
         pe_ratio = round(float(pe_raw), 2) if pe_raw and str(pe_raw) != 'nan' else None
-        week52_high = info.get('fiftyTwoWeekHigh')
-        week52_low = info.get('fiftyTwoWeekLow')
+        week52_high = info.get('fiftyTwoWeekHigh') or week52_high_calc
+        week52_low  = info.get('fiftyTwoWeekLow')  or week52_low_calc
         volume = int(hist['Volume'].iloc[-1]) if 'Volume' in hist.columns else info.get('volume')
+
+        # Analyst recommendation
+        rec_key = info.get('recommendationKey', '').lower()
+        if rec_key in ('strong_buy', 'buy'):
+            analyst_text = 'Most Wall Street analysts rate it a Buy'
+            analyst_signal = 'positive'
+        elif rec_key in ('sell', 'strong_sell', 'underperform'):
+            analyst_text = 'Most Wall Street analysts rate it a Sell'
+            analyst_signal = 'negative'
+        elif rec_key in ('hold', 'neutral'):
+            analyst_text = 'Most Wall Street analysts rate it a Hold'
+            analyst_signal = 'neutral'
+        else:
+            analyst_text = None
+            analyst_signal = 'neutral'
+
+        # Revenue growth
+        rev_growth = info.get('revenueGrowth')
+        if rev_growth and rev_growth > 0.05:
+            rev_text = f'The company has shown strong revenue growth of {round(rev_growth*100,1)}% recently'
+            rev_signal = 'positive'
+        elif rev_growth and rev_growth < -0.05:
+            rev_text = f'Revenue has been declining by {abs(round(rev_growth*100,1))}% recently'
+            rev_signal = 'negative'
+        else:
+            rev_text = None
+            rev_signal = 'neutral'
+
+        # Build outlook signals
+        signals_positive = []
+        signals_negative = []
+        signals_neutral  = []
+
+        if trend_1mo > 3:
+            signals_positive.append(f'up {round(trend_1mo,1)}% over the past month')
+        elif trend_1mo < -3:
+            signals_negative.append(f'down {abs(round(trend_1mo,1))}% over the past month')
+        else:
+            signals_neutral.append(f'roughly flat over the past month ({round(trend_1mo,1)}%)')
+
+        if trend_3mo > 5:
+            signals_positive.append(f'up {round(trend_3mo,1)}% over 3 months')
+        elif trend_3mo < -5:
+            signals_negative.append(f'down {abs(round(trend_3mo,1))}% over 3 months')
+
+        if analyst_signal == 'positive' and analyst_text:
+            signals_positive.append(analyst_text)
+        elif analyst_signal == 'negative' and analyst_text:
+            signals_negative.append(analyst_text)
+
+        if rev_signal == 'positive' and rev_text:
+            signals_positive.append(rev_text)
+        elif rev_signal == 'negative' and rev_text:
+            signals_negative.append(rev_text)
+
+        # Overall outlook
+        if len(signals_positive) >= 2:
+            overall = 'bullish'
+        elif len(signals_negative) >= 2:
+            overall = 'bearish'
+        else:
+            overall = 'mixed'
+
+        # Build plain-English outlook paragraph
+        all_signals = signals_positive + signals_negative + signals_neutral
+        if all_signals:
+            outlook_para = f"{company_name} has been {', '.join(all_signals[:2])}. "
+        else:
+            outlook_para = f"{company_name} is currently {w52_label}. "
+
+        if analyst_text and analyst_text not in outlook_para:
+            outlook_para += f"{analyst_text}. "
+
+        if rev_text and rev_text not in outlook_para:
+            outlook_para += f"{rev_text}. "
+
+        outlook_para += f"The stock is currently {w52_label}."
+
+        if overall == 'bullish':
+            outlook_para += ' These signals suggest positive momentum overall.'
+        elif overall == 'bearish':
+            outlook_para += ' These signals suggest caution is warranted.'
+        else:
+            outlook_para += ' The overall picture is mixed — worth watching closely.'
+
+        # Beginner-friendly version
+        if trend_1mo > 3:
+            beginner_trend = f"its price has been going up lately — {round(trend_1mo,1)}% higher than a month ago"
+        elif trend_1mo < -3:
+            beginner_trend = f"its price has been falling lately — down {abs(round(trend_1mo,1))}% from a month ago"
+        else:
+            beginner_trend = "its price has been fairly stable over the past month"
+
+        if analyst_signal == 'positive':
+            beginner_analyst = "Professional investors who study this stock for a living mostly recommend buying it"
+        elif analyst_signal == 'negative':
+            beginner_analyst = "Professional investors who study this stock mostly recommend selling it"
+        else:
+            beginner_analyst = "Professional investors are split — some say buy, some say wait"
+
+        if w52_position > 80:
+            beginner_w52 = "It is near its highest price of the past year, which means it has been doing well but may have less room to grow"
+        elif w52_position < 20:
+            beginner_w52 = "It is near its lowest price of the past year — it has dropped a lot, which could be a risk or an opportunity depending on why"
+        else:
+            beginner_w52 = "Its price is somewhere in the middle compared to the past year — not unusually high or low"
+
+        beginner_outlook = f"Here is what the data says about why this stock might go up or down: {beginner_trend}. {beginner_analyst}. {beginner_w52}."
 
         return jsonify({
             'price': round(current_price, 2),
@@ -85,6 +211,13 @@ def quote():
             'week52High': round(float(week52_high), 2) if week52_high else None,
             'week52Low': round(float(week52_low), 2) if week52_low else None,
             'volume': int(volume) if volume else None,
+            'trend1mo': round(trend_1mo, 1),
+            'trend3mo': round(trend_3mo, 1),
+            'outlookPara': outlook_para,
+            'beginnerOutlook': beginner_outlook,
+            'overallOutlook': overall,
+            'analystText': analyst_text,
+            'w52Label': w52_label,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
