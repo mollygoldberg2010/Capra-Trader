@@ -439,17 +439,19 @@ aside {
 .tip-card.visible { opacity: 1; transform: translateY(0); transition: opacity 0.18s ease, transform 0.18s ease; }
 
 /* ---- MODE SELECTION MODAL ---- */
-.mode-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.42);
-  z-index: 10000; display: flex; align-items: center; justify-content: center;
-  padding: 24px; backdrop-filter: blur(5px);
-}
+  .mode-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.42);
+    z-index: 10000; display: flex; align-items: flex-start; justify-content: center;
+    padding: 24px; backdrop-filter: blur(5px);
+    overflow-y: auto;
+  }
 .mode-overlay.hidden { display: none; }
-.mode-modal {
-  background: var(--bg); border-radius: 28px; padding: 44px 40px;
-  max-width: 700px; width: 100%; box-shadow: 0 28px 70px rgba(0,0,0,0.22);
-  animation: fadeUp 0.38s ease; position: relative;
-}
+  .mode-modal {
+    background: var(--bg); border-radius: 28px; padding: 44px 40px;
+    max-width: 700px; width: 100%; box-shadow: 0 28px 70px rgba(0,0,0,0.22);
+    animation: fadeUp 0.38s ease; position: relative;
+    margin: auto;
+  }
 .mode-modal-close {
   display: none; position: absolute; top: 20px; right: 22px;
   background: none; border: none; font-size: 22px; cursor: pointer;
