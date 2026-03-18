@@ -18,7 +18,12 @@ NAME_MAP = {
     "GS": "Goldman Sachs", "V": "Visa", "MA": "Mastercard", "XOM": "ExxonMobil",
     "CVX": "Chevron", "CAT": "Caterpillar", "HON": "Honeywell", "GE": "GE Aerospace",
     "LMT": "Lockheed Martin", "BA": "Boeing", "DIS": "Disney", "SBUX": "Starbucks",
-    "MCD": "McDonald's", "LLY": "Eli Lilly", "BABA": "Alibaba",
+    "MCD": "McDonald's", "LLY": "Eli Lilly", "BABA": "Alibaba","MS": "Morgan Stanley", "COP": "ConocoPhillips", "NKE": "Nike",
+    "WMT": "Walmart", "COST": "Costco", "COIN": "Coinbase",
+    "SQ": "Block", "SHOP": "Shopify", "SNAP": "Snap",
+    "RBLX": "Roblox", "PLTR": "Palantir", "RIVN": "Rivian",
+    "LCID": "Lucid Motors", "MRK": "Merck", "BRK-B": "Berkshire Hathaway",
+    "SPOT": "Spotify",
 }
 
 SECTOR_MAP = {
@@ -34,7 +39,14 @@ SECTOR_MAP = {
     "XOM": "Energy", "CVX": "Energy", "CAT": "Industrials", "HON": "Industrials",
     "GE": "Industrials", "LMT": "Industrials", "BA": "Industrials",
     "DIS": "Communication Services", "SBUX": "Consumer Cyclical", "MCD": "Consumer Defensive",
-    "LLY": "Healthcare", "BABA": "Consumer Cyclical",
+    "LLY": "Healthcare", "BABA": "Consumer Cyclical","MS": "Financial Services", "COP": "Energy", "NKE": "Consumer Cyclical",
+    "WMT": "Consumer Defensive", "COST": "Consumer Defensive",
+    "COIN": "Financial Services", "SQ": "Financial Services",
+    "SHOP": "Consumer Cyclical", "SNAP": "Communication Services",
+    "RBLX": "Communication Services", "PLTR": "Technology",
+    "RIVN": "Consumer Cyclical", "LCID": "Consumer Cyclical",
+    "MRK": "Healthcare", "BRK-B": "Financial Services",
+    "SPOT": "Communication Services",
 }
 
 MOVER_TICKERS = ["NVDA", "META", "AMZN", "LLY", "MSFT", "TSLA", "INTC", "PYPL", "DIS", "PFE"]
@@ -79,6 +91,16 @@ def quote():
             w52_label = 'in the middle of its 52-week range'
 
         info = t.info
+        # Fetch recent news
+        try:
+            news_items = t.news or []
+            news = []
+            for item in news_items[:3]:
+                title = item.get('title', '')
+                if title:
+                    news.append(title)
+        except Exception:
+            news = []
         company_name = info.get('longName') or info.get('shortName') or NAME_MAP.get(ticker, ticker)
         sector = info.get('sector') or SECTOR_MAP.get(ticker, 'Unknown')
         market_cap = info.get('marketCap')
@@ -207,6 +229,7 @@ def quote():
             'overallOutlook': overall,
             'analystText': analyst_text,
             'w52Label': w52_label,
+            'news': news,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
