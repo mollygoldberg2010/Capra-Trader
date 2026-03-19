@@ -1309,11 +1309,11 @@ function renderAnalyzerResults(data) {
 
   let html = '';
   if (capra_mode === 'beginner') {
-    html = buildAnalyzerBeginner(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, data.beginnerOutlook, data.outlookPara);
+    html = buildAnalyzerBeginner(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, data.beginnerOutlook, data.outlookPara, data.news || []);
   } else if (capra_mode === 'pro') {
-    html = buildAnalyzerPro(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, data.beginnerOutlook, data.outlookPara);
+    html = buildAnalyzerPro(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, data.beginnerOutlook, data.outlookPara, data.news || []);
   } else {
-    html = buildAnalyzerIntermediate(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, data.beginnerOutlook, data.outlookPara);
+    html = buildAnalyzerIntermediate(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, data.beginnerOutlook, data.outlookPara, data.news || []);
   }
 
   const resultsEl = document.getElementById('analyzer-results');
@@ -1362,7 +1362,7 @@ function stockHeaderHTML(ticker, q, price, changeSign, changeClass, rp) {
 }
 
 // BEGINNER results
-  function buildAnalyzerBeginner(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, beginnerOutlook, outlookPara) {
+  function buildAnalyzerBeginner(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, beginnerOutlook, outlookPara, news) {
   const profit = (target - price).toFixed(2);
   const company = q.companyName || ticker;
   return `
@@ -1412,7 +1412,7 @@ function stockHeaderHTML(ticker, q, price, changeSign, changeClass, rp) {
    </div>`;}
 
 // INTERMEDIATE results
-  function buildAnalyzerIntermediate(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, beginnerOutlook, outlookPara) {
+  function buildAnalyzerIntermediate(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, beginnerOutlook, outlookPara, news) {
   const profit = (target - price).toFixed(2);
   const company = q.companyName || ticker;
   return `
@@ -1485,7 +1485,7 @@ function stockHeaderHTML(ticker, q, price, changeSign, changeClass, rp) {
   }
 
   // PRO results
-  function buildAnalyzerPro(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, beginnerOutlook, outlookPara) {
+  function buildAnalyzerPro(ticker, q, rp, price, stopLoss, target, changeSign, changeClass, w52pct, beginnerOutlook, outlookPara, news) {
   return `
   <div class="results-card">
     ${stockHeaderHTML(ticker, q, price, changeSign, changeClass, rp)}
